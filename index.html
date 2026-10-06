@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard มอนิเตอร์ผลการประเมิน - สอวน. ดาราศาสตร์</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Sarabun', sans-serif; padding: 20px; }
+    .card-stat { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .metric-val { font-size: 2.2rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>📊 Dashboard มอนิเตอร์ผลการประเมินค่าย สอวน. ดาราศาสตร์</h2>
+      <button class="btn btn-primary btn-sm" onclick="loadData()">🔄 อัปเดตข้อมูล</button>
+    </div>
+
+    <!-- การ์ดสรุปสถิติ -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card card-stat bg-primary text-white p-3">
+          <h5>จำนวนผู้ตอบทั้งหมด</h5>
+          <div class="metric-val" id="totalCount">0</div>
+          <small>คน / การตอบกลับ</small>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-stat bg-success text-white p-3">
+          <h5>ความพึงพอใจด้านวิทยากร (เฉลี่ย)</h5>
+          <div class="metric-val" id="avgLec">0.00</div>
+          <small>จากคะแนนเต็ม 5.00</small>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-stat bg-warning text-dark p-3">
+          <h5>ความพึงพอใจอาหาร/สถานที่ (เฉลี่ย)</h5>
+          <div class="metric-val" id="avgFac">0.00</div>
+          <small>จากคะแนนเต็ม 5.00</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- กราฟรายวัน -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-12">
+        <div class="card card-stat p-3">
+          <h5>📈 เปรียบเทียบคะแนนความพึงพอใจเฉลี่ยรายวัน</h5>
+          <canvas id="dailyChart" height="100"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ตารางข้อเสนอแนะ -->
+    <div class="row g-3">
+      <div class="col-md-12">
+        <div class="card card-stat p-3">
+          <h5>💬 ข้อเสนอแนะและสิ่งที่ประทับใจล่าสุดจากนักเรียน</h5>
+          <div class="table-responsive">
+            <table class="table table-hover mt-2">
+              <thead class="table-light">
+                <tr>
+                  <th>รอบวันอบรม</th>
+                  <th>ชื่อผู้ประเมิน</th>
+                  <th>สิ่งที่ประทับใจ</th>
+                  <th>ข้อเสนอแนะ/สิ่งที่ควรปรับปรุง</th>
+                </tr>
+              </thead>
+              <tbody id="commentTable">
+                <tr><td colspan="4" class="text-center">กำลังโหลดข้อมูล...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ นำ Web App URL ที่ได้จาก Google Apps Script มาวางแทนที่ตรงนี้
+    const API_URL = 'https://script.google.com/macros/s/YOUR_APPS_SCRIPT_WEB_APP_ID/exec';
+
+    var myChart = null;
+
+    function loadData() {
+      document.getElementById('commentTable').innerHTML = '<tr><td colspan="4" class="text-center">กำลังโหลดข้อมูล...</td></tr>';
+      
+      fetch(API_URL)
+        .then(response => response.json())
+        .then(data => renderDashboard(data))
+        .catch(error => {
+          console.error('Error fetching data:', error);
+          document.getElementById('commentTable').innerHTML = '<tr><td colspan="4" class="text-center text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+        });
+    }
+
+    function renderDashboard(data) {
+      document.getElementById('totalCount').innerText = data.totalResponses;
+      document.getElementById('avgLec').innerText = data.avgLecturer;
+      document.getElementById('avgFac').innerText = data.avgFacility;
+
+      var labels = Object.keys(data.dailyStats);
+      var lecScores = [];
+      var facScores = [];
+
+      labels.forEach(function(day) {
+        var stat = data.dailyStats[day];
+        lecScores.push((stat.sumLec / stat.count).toFixed(2));
+        facScores.push((stat.sumFac / stat.count).toFixed(2));
+      });
+
+      var ctx = document.getElementById('dailyChart').getContext('2d');
+      if (myChart) myChart.destroy();
+
+      myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'ด้านวิทยากร', data: lecScores, backgroundColor: '#198754' },
+            { label: 'ด้านอาหาร/สถานที่', data: facScores, backgroundColor: '#ffc107' }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { min: 0, max: 5 } }
+        }
+      });
+
+      var tbody = document.getElementById('commentTable');
+      tbody.innerHTML = '';
+      if (!data.comments || data.comments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">ยังไม่มีข้อเสนอแนะ</td></tr>';
+      } else {
+        data.comments.forEach(function(c) {
+          tbody.innerHTML += `<tr>
+            <td><span class="badge bg-info text-dark">${c.day}</span></td>
+            <td>${c.student}</td>
+            <td class="text-success">${c.pos || '-'}</td>
+            <td class="text-danger">${c.imp || '-'}</td>
+          </tr>`;
+        });
+      }
+    }
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
